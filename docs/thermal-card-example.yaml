@@ -1,0 +1,29 @@
+type: custom:floor3d-card
+path: /local/home/
+objfile: apartment.glb
+thermal:
+  mode: live
+  manifest_url: /published/current/flows/manifest.json
+  layout_url: /local/home/thermal-layout.json
+  default_window: 24h
+  stale_after_seconds: 900
+  rooms:
+    living_room:
+      object_id: room_living_floor
+      entity: sensor.living_room_temperature
+    dining_room:
+      object_id: room_dining_floor
+      entity: sensor.dining_room_temperature
+    kitchen:
+      object_id: room_kitchen_floor
+      entity: sensor.kitchen_temperature
+    bedroom:
+      object_id: room_bedroom_floor
+      entity: sensor.bedroom_temperature
+  visualization:
+    room_color: delta_to_setpoint
+    min_temperature: 16
+    max_temperature: 28
+    flow_width: [0.8, 4]
+    show_labels: true
+    show_uncertainty: true

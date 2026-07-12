@@ -1,0 +1,4 @@
+{
+  "compilerOptions":{"target":"es2019","module":"commonjs","moduleResolution":"node","lib":["es2019","dom"],"strict":true,"esModuleInterop":true,"outDir":".test-dist","rootDir":".","skipLibCheck":true},
+  "include":["src/thermal/types.ts","src/thermal/validation.ts","src/thermal/scales.ts","src/thermal/live-adapter.ts","test/thermal.test.ts"]
+}

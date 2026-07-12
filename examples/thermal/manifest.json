@@ -1,0 +1,7 @@
+{
+  "schema_version":"thermal-flows/v1",
+  "run_stamp":"anonymous-20260711T000000Z",
+  "generated_at":"2026-07-11T00:05:00Z",
+  "layout_url":"layout.json",
+  "windows":{"2h":"2h.json","24h":"24h.json","7d":"7d.json"}
+}

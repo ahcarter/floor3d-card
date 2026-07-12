@@ -1,0 +1,28 @@
+name: CI
+on:
+  push:
+    branches: [master]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run rollup
+      - name: Validate bundle
+        run: test -s dist/floor3d-card.js
+      - uses: actions/upload-artifact@v4
+        with:
+          name: floor3d-card
+          path: dist/floor3d-card.js
+          if-no-files-found: error

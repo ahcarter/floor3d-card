@@ -972,3 +972,8 @@ Original card by [adizanni](https://github.com/adizanni/floor3d-card).
 Room-aware smart home features (markers, room controls, animations, zoom entity, diagonal AC wind, sky/weather/moon system, backdrop blur, CSS height, particle weather effects) added by [anasmadrhar](https://github.com/anasmadrhar).
 
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/AndyHA)
+
+## Thermal digital twin
+
+The optional `thermal` configuration adds live Home Assistant room temperatures and immutable historical playback without changing existing entity bindings. See [the card example](docs/thermal-card-example.yaml), [v1 contract](docs/thermal-contract-v1.md), and [anonymous artifacts](examples/thermal/). Deployment-specific geometry and entity IDs should remain private.
+

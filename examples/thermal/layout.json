@@ -1,0 +1,16 @@
+{
+  "schema_version": "thermal-flows/v1",
+  "rooms": [
+    {"id":"living_room","label":"Living room","object_id":"room_living_floor","anchor_id":"living"},
+    {"id":"kitchen","label":"Kitchen","object_id":"room_kitchen_floor","anchor_id":"kitchen"}
+  ],
+  "anchors": [
+    {"id":"living","position":{"x":0,"y":12,"z":0}},
+    {"id":"kitchen","position":{"x":180,"y":12,"z":0}},
+    {"id":"outdoor_kitchen","position":{"x":260,"y":12,"z":0}}
+  ],
+  "edges": [
+    {"id":"living_to_kitchen","from":"living_room","to":"kitchen","from_anchor":"living","to_anchor":"kitchen","kind":"inter_room"},
+    {"id":"kitchen_to_outdoor","from":"kitchen","to":"outdoor","from_anchor":"kitchen","to_anchor":"outdoor_kitchen","kind":"outdoor"}
+  ]
+}

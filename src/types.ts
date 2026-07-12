@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ActionConfig, LovelaceCard, LovelaceCardEditor } from 'custom-card-helpers';
+import type { ThermalConfig } from './thermal/types';
 
 declare global {
   interface HTMLElementTagNameMap {
@@ -243,6 +244,9 @@ export interface Floor3dCardConfig {
   color: string;
   show_warning: boolean;
   show_error: boolean;
+
+  // Optional thermal digital twin. Existing cards are unchanged when omitted.
+  thermal?: ThermalConfig;
 
   // --- New: Anchors ---
   anchors?: AnchorConfig[];

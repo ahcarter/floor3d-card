@@ -12,6 +12,10 @@ import './editor';
 import { HassEntity } from 'home-assistant-js-websocket';
 import { createConfigArray, createObjectGroupConfigArray, getLovelace, evaluateCondition } from './helpers';
 import type { Floor3dCardConfig, MarkerConfig, RoomControlConfig, AnimationConfig } from './types';
+import { ThermalController } from './thermal/controller';
+import { ThermalControls } from './thermal/controls';
+import { ThermalThreeRenderer } from './thermal/three-renderer';
+import { validateLayout } from './thermal/validation';
 import { CARD_VERSION } from './const';
 import { localize } from './localize/localize';
 //import three.js libraries for 3D rendering
@@ -68,6 +72,7 @@ const CACHE_SKIP = new Set([
   '_visibilityChangeHandler', '_externalZoomHandler',
   // per-instance timer maps (timeout IDs are per-instance)
   '_markerJourneyTimeouts',
+  '_thermalController', '_thermalRenderer', '_thermalControls', '_thermalChangeListener',
   // zoom entity state — reset per element so the first hass update always syncs
   '_lastZoomEntityState',
 ]);
@@ -247,6 +252,12 @@ export class Floor3dCard extends LitElement {
   }> = new Map();
   private _externalZoomHandler?: EventListener;
 
+  // --- Optional thermal digital twin ---
+  private _thermalController?: ThermalController;
+  private _thermalRenderer?: ThermalThreeRenderer;
+  private _thermalControls?: ThermalControls;
+  private _thermalChangeListener?: EventListener;
+
   // --- Mobile object-ID discovery (long-press) ---
   private _discoverLongPressTimeout: any = null;
   private _discoverTouchOrigin: { x: number; y: number; e: any } | null = null;
@@ -401,6 +412,7 @@ export class Floor3dCard extends LitElement {
     }
     this._markerJourneyTimeouts.forEach(id => window.clearTimeout(id));
     this._markerJourneyTimeouts.clear();
+    this._disposeThermal();
 
     this._resizeObserver.disconnect();
     this._intersectionObserver.unobserve(this);
@@ -839,6 +851,7 @@ export class Floor3dCard extends LitElement {
 
           // Re-apply background from the new config (may have changed since the cached scene was created).
           this._applyBackground();
+          void this._initThermal();
 
           // Recalibrate camera/renderer to the new container, then re-apply state.
           this._resizeCanvas();
@@ -1258,6 +1271,7 @@ export class Floor3dCard extends LitElement {
       //called by Home Assistant Lovelace when a change of state is detected in entities
       const prevHass = this._hass; // capture BEFORE update for change detection
       this._hass = hass;
+      this._thermalController?.updateHass(hass);
       if (this._config.entities) {
         if (!this._states) {
           //prepares to save the state
@@ -2485,7 +2499,7 @@ export class Floor3dCard extends LitElement {
     if (useWebGPU) {
       try {
         // Dynamic import keeps WebGPU bundle out of WebGL-only builds.
-        // @ts-ignore — three/webgpu is not in @types/three's node-resolution paths
+        // @ts-expect-error — three/webgpu is not in @types/three's node-resolution paths
         const { WebGPURenderer } = await import('three/webgpu');
         const gpuRenderer = new WebGPURenderer({ antialias: true, alpha: true });
         await gpuRenderer.init();
@@ -2679,6 +2693,7 @@ export class Floor3dCard extends LitElement {
       this._content.appendChild(this._animationsbar);
       this._content.appendChild(this._renderer.domElement);
       this._selectedlevel = -1;
+      void this._initThermal();
 
       render(this._getSelectionBar(), this._selectionbar);
 
@@ -4658,7 +4673,8 @@ export class Floor3dCard extends LitElement {
     return this._rotation_state.some((item) => item !== 0) ||
            TWEEN.getAll().length > 0 ||
            weatherRunning ||
-           particlesRunning;
+           particlesRunning ||
+           !!this._thermalRenderer?.needsAnimation();
   }
 
   // If every rotating entity and Tween is stopped, disable animation
@@ -4927,10 +4943,56 @@ export class Floor3dCard extends LitElement {
       }
     }
 
+    this._thermalRenderer?.animate(now);
     this._renderer.render(this._scene, this._camera);
     this._updateOverlayPositions();
   }
 
+
+  private async _initThermal(): Promise<void> {
+    this._disposeThermal();
+    const config = this._config?.thermal;
+    if (!config || !this._scene || !this._content) return;
+    const controller = new ThermalController(config);
+    this._thermalController = controller;
+    this._thermalControls = new ThermalControls(controller);
+    this._content.appendChild(this._thermalControls.element);
+    try {
+      const response = await fetch(config.layout_url, { cache: 'no-cache' });
+      if (!response.ok) throw new Error('Thermal layout request failed (' + response.status + ')');
+      if (this._thermalController !== controller || !this._scene) return;
+      const layout = validateLayout(await response.json());
+      const renderer = new ThermalThreeRenderer(this._scene, layout, config);
+      this._thermalRenderer = renderer;
+      this._thermalChangeListener = () => {
+        const snapshot = controller.state.snapshot;
+        if (snapshot) renderer.apply(snapshot);
+        renderer.setAnimating(snapshot?.mode === 'live' || controller.state.playing);
+        this._startOrStopAnimationLoop();
+        this._render();
+      };
+      controller.addEventListener('change', this._thermalChangeListener);
+      if (this._hass) controller.updateHass(this._hass);
+      if ((config.mode || 'live') === 'playback') await controller.loadWindow(config.default_window || '24h');
+    } catch (error) {
+      controller.state = { ...controller.state, loading: false, error: error instanceof Error ? error.message : String(error) };
+      controller.dispatchEvent(new Event('change'));
+      console.warn('floor3d-card: thermal initialization failed', error);
+    }
+  }
+
+  private _disposeThermal(): void {
+    if (this._thermalController && this._thermalChangeListener) {
+      this._thermalController.removeEventListener('change', this._thermalChangeListener);
+    }
+    this._thermalChangeListener = undefined;
+    this._thermalControls?.dispose();
+    this._thermalRenderer?.dispose();
+    this._thermalController?.dispose();
+    this._thermalControls = undefined;
+    this._thermalRenderer = undefined;
+    this._thermalController = undefined;
+  }
   // https://lit-element.polymer-project.org/guide/templates
 
   protected render(): TemplateResult | void {
@@ -5964,6 +6026,19 @@ export class Floor3dCard extends LitElement {
 
   // https://lit-element.polymer-project.org/guide/styles
   static get styles(): CSSResultGroup {
-    return css``;
+    return css`
+      .floor3d-thermal-controls { position:absolute;left:12px;right:12px;bottom:12px;z-index:30;padding:9px;border-radius:10px;color:var(--primary-text-color,#fff);background:rgba(32,33,36,.88);box-shadow:0 3px 12px rgba(0,0,0,.28);font:12px/1.3 sans-serif; }
+      .thermal-toolbar { display:flex;gap:5px;flex-wrap:wrap;align-items:center; }
+      .floor3d-thermal-controls button { border:1px solid currentColor;border-radius:7px;padding:4px 7px;color:inherit;background:transparent;cursor:pointer; }
+      .floor3d-thermal-controls button[aria-pressed="true"] { background:var(--primary-color,#03a9f4);color:#fff; }
+      .floor3d-thermal-controls input[type="range"] { width:100%;margin:7px 0 2px; }
+      .floor3d-thermal-controls output { display:block;margin-top:5px; }
+      .thermal-values { display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:5px; }
+      .thermal-value.inferred { border-bottom:2px dashed currentColor; }
+      .thermal-value.missing { opacity:.6; }
+      .thermal-legend { display:flex;gap:5px;align-items:center;margin-top:5px; }
+      .thermal-legend i { width:85px;height:7px;border-radius:4px;background:linear-gradient(90deg,#2c7bb6,#ffffbf,#d7191c); }
+      .inferred-key { margin-left:auto;border-bottom:2px dashed currentColor; }
+    `;
   }
 }

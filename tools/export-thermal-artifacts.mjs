@@ -45,4 +45,14 @@ const pointer = path.join(args.published, 'current-flows.json'), temporary = poi
 await mkdir(args.published, { recursive: true });
 await writeFile(temporary, JSON.stringify({ run_stamp: args.run, manifest_url: args.run + '/flows/manifest.json' }));
 await rename(temporary, pointer);
+// Stable manifest: the card's thermal.manifest_url points here once; its
+// relative URLs re-target each run (validateManifest can't read the pointer).
+const stableDir = path.join(args.published, 'flows');
+await mkdir(stableDir, { recursive: true });
+const prefix = '../' + args.run + '/flows/';
+const stable = { ...manifest, layout_url: prefix + 'layout.json',
+  windows: { '2h': prefix + '2h.json', '24h': prefix + '24h.json', '7d': prefix + '7d.json' } };
+const stablePath = path.join(stableDir, 'manifest.json'), stableTmp = stablePath + '.tmp';
+await writeFile(stableTmp, JSON.stringify(stable));
+await rename(stableTmp, stablePath);
 console.log(runDir);

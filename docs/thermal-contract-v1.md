@@ -32,6 +32,12 @@ Use `--7d-step=6` (the default) to turn five-minute frames into 30-minute 7d fra
 
 Write artifacts under an immutable run directory, then atomically update only the existing current-run pointer. The manifest's `run_stamp` must match every dataset it exposes. Relative URLs are resolved against the manifest URL.
 
+The card cannot follow the `current-flows.json` indirection (its `thermal.manifest_url` must
+resolve to a real manifest), so publishers also maintain a **stable manifest** at
+`published/flows/manifest.json` whose relative URLs (`../<run>/flows/…`) re-target the newest
+run. Configure the card against that fixed URL once; every publish updates it atomically.
+The analysis project's `export-thermal-flows` command and this repo's exporter both write it.
+
 ## Model naming
 
 Keep deployment geometry and entity IDs private. For a Sweet Home 3D export, retain semantic object names such as `room_living_floor`, `anchor_living_dining`, `vent_living_supply`, and `boundary_kitchen_outdoor`. Use centimetres consistently, place the plan origin at the upper-left, document north, and verify object names after every OBJ → GLB conversion.
